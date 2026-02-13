@@ -1,29 +1,32 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
+from models import AnalyzeRequest, AnalyzeResponse
 from ai_service import consultar_ia
 
 app = FastAPI(title="Check-in Saúde Mental API")
 
-
-class AnalyzeRequest(BaseModel):
-    relato: str
-
-
-class AnalyzeResponse(BaseModel):
-    response: str
-
+# ✅ CORS CONFIG
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # MVP - libera todos (depois você pode restringir)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
-
+    return {
+        "service": "check-in-saude-backend",
+        "status": "ok"
+    }
 
 @app.get("/health")
 def healthcheck():
     return {"status": "ok"}
 
-
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(data: AnalyzeRequest):
     resposta = consultar_ia(data.relato)
-    return {"response": resposta}
+    return AnalyzeResponse(response=resposta)
