@@ -1,10 +1,8 @@
 import os
 from openai import OpenAI
 
-# Cliente OpenAI usando variável de ambiente
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+# A SDK já lê OPENAI_API_KEY automaticamente do ambiente
+client = OpenAI()
 
 SYSTEM_PROMPT = """
 Você é um assistente digital de apoio para pessoas que convivem com dependência química.
@@ -63,21 +61,26 @@ def consultar_ia(relato: str) -> str:
             input=[
                 {
                     "role": "system",
-                    "content": SYSTEM_PROMPT
+                    "content": [
+                        {"type": "text", "text": SYSTEM_PROMPT}
+                    ]
                 },
                 {
                     "role": "user",
-                    "content": relato
+                    "content": [
+                        {"type": "text", "text": relato}
+                    ]
                 }
             ],
             max_output_tokens=120
         )
 
-        # Extração segura do texto (SDK nova)
-        if response.output_text:
+        # Extração segura compatível com SDK atual
+        if hasattr(response, "output_text") and response.output_text:
             return response.output_text.strip()
 
         return "Estou aqui com você neste momento."
 
-    except Exception:
+    except Exception as e:
+        print(f"Erro OpenAI: {e}")  # útil para log no Render
         return "Não consegui responder agora, mas continuo aqui."
