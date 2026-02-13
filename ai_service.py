@@ -1,8 +1,9 @@
 import os
 from openai import OpenAI
 
-# A SDK já lê OPENAI_API_KEY automaticamente do ambiente
-client = OpenAI()
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
 
 SYSTEM_PROMPT = """
 Você é um assistente digital de apoio para pessoas que convivem com dependência química.
@@ -34,20 +35,6 @@ ESTRUTURA DA RESPOSTA (sempre curta):
 4. Ofereça UMA ação simples e imediata, sem obrigação.
 5. Faça no máximo UMA pergunta curta, opcional.
 
-EXEMPLOS DE AÇÕES ACEITÁVEIS:
-- respirar por 60 segundos
-- beber água
-- sentar ou deitar
-- adiar a decisão por 5–10 minutos
-- observar o corpo sem tentar mudar nada
-
-SITUAÇÕES DE ALTA PRESSÃO:
-Se o usuário expressar perda total de controle ou sofrimento intenso:
-- Não entre em explicações longas.
-- Reforce que ele não está sozinho neste momento.
-- Incentive contato humano imediato de forma direta e simples.
-- No Brasil, mencione o CVV (188) apenas quando necessário.
-
 OBJETIVO REAL:
 Ajudar o usuário a não se sentir sozinho
 e a ganhar alguns minutos de consciência antes da ação automática.
@@ -56,31 +43,18 @@ Nada além disso.
 
 def consultar_ia(relato: str) -> str:
     try:
-        response = client.responses.create(
-            model="gpt-4.1-mini",
-            input=[
-                {
-                    "role": "system",
-                    "content": [
-                        {"type": "text", "text": SYSTEM_PROMPT}
-                    ]
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": relato}
-                    ]
-                }
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": relato}
             ],
-            max_output_tokens=120
+            max_tokens=120,
+            temperature=0.7
         )
 
-        # Extração segura compatível com SDK atual
-        if hasattr(response, "output_text") and response.output_text:
-            return response.output_text.strip()
-
-        return "Estou aqui com você neste momento."
+        return response.choices[0].message.content.strip()
 
     except Exception as e:
-        print(f"Erro OpenAI: {e}")  # útil para log no Render
+        print("Erro OpenAI:", e)
         return "Não consegui responder agora, mas continuo aqui."
