@@ -25,33 +25,21 @@ NÃO convide para continuar a conversa.
 ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
 
 1) TÍTULO CURTO
-Resumo neutro do estado atual.
 
 2) ANÁLISE DO MOMENTO
-Explique o que pode estar acontecendo
-em termos de padrão comportamental ou emocional,
-sem afirmar diagnóstico.
 
 3) MECANISMO POSSÍVEL
-Explique brevemente o mecanismo psicológico ou neurocomportamental envolvido.
-Use linguagem clara.
 
 4) MICRO-INTERVENÇÃO IMEDIATA
-Ofereça UMA ação simples que pode ser feita agora.
-Sem obrigação.
 
 5) NOTA DE CONTEXTO
-Reforce que estados variam e não definem identidade.
 
 6) FONTES
-Liste 2 a 4 referências científicas relacionadas ao mecanismo citado.
-Use formato simples (Autor, Ano ou Instituição).
 
 IMPORTANTE:
 - Linguagem clara, objetiva e neutra.
 - Evite jargão clínico excessivo.
 - Não ultrapasse 220 palavras.
-- Não use listas numeradas visíveis.
 - Use pequenos blocos separados por linha em branco.
 """
 
@@ -63,8 +51,8 @@ def consultar_ia(relato: str) -> str:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": relato}
             ],
-            max_tokens=120,
-            temperature=0.7
+            max_tokens=600,  # 🔥 AQUI ESTAVA O PROBLEMA
+            temperature=0.6
         )
 
         return response.choices[0].message.content.strip()
