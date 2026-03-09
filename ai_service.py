@@ -1,112 +1,72 @@
-import os
-import re
 from openai import OpenAI
-from typing import Optional
+import os
+import json
+from services.bible_search import buscar_versiculos
 
-# Configuração do cliente OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-SYSTEM_PROMPT = """
-Você é um assistente especializado em análise de relatos para sugestão de fórmulas magistrais de venda livre em farmácias brasileiras.
+PROMPT = """
+Você é um conselheiro espiritual profundamente familiarizado com a Bíblia.
 
-REGRAS OBRIGATÓRIAS:
-- NUNCA recomende medicamentos com tarja vermelha ou preta (sujeitos a prescrição).
-- Limite-se a fórmulas isentas de prescrição conforme RDC 357/2020 da Anvisa e Formulário Nacional.
-- NÃO faça diagnósticos médicos nem substitua orientação farmacêutica.
-- Todas as sugestões devem ser fórmulas magistrais comuns em farmácias brasileiras com venda livre autorizada.
-- Verifique SINAIS DE ALERTA: febre >39°C, dor torácica, sangramento, gestação, crianças <2 anos → direcionar a atendimento profissional.
+Seu papel é ajudar pessoas a refletirem espiritualmente à luz das Escrituras.
 
-ESTRUTURA DA RESPOSTA (220 palavras máx):
+Instruções:
 
-1) TÍTULO DO SINTOMA
-Breve descrição do quadro relatado.
+1. Leia atentamente o relato do usuário.
+2. Compreenda o estado emocional e espiritual presente no relato.
+3. Considere os versículos bíblicos fornecidos como referência.
+4. Produza uma reflexão pastoral baseada nesses versículos.
 
-2) ANÁLISE DO RELATO
-Identificação objetiva dos sintomas mencionados sem interpretação diagnóstica.
+A resposta deve:
 
-3) FÓRMULAS SUGERIDAS (máx 3)
-- Nome da fórmula magistral + concentração
-- Indicação conforme bulário brasileiro
+• reconhecer o sentimento humano presente no relato
+• trazer uma reflexão espiritual profunda
+• aplicar ensinamentos bíblicos à situação
+• incentivar esperança, fé e perseverança
+• permanecer fiel ao sentido das Escrituras
+• evitar respostas genéricas ou superficiais
 
-4) NOTA DE SEGURANÇA
-Estas são opções de venda livre, mas a avaliação por farmacêutico é obrigatória antes da manipulação conforme Art. 32 da RDC 67/2007.
+Use apenas os versículos fornecidos na seção "Versículos bíblicos relevantes".
+Não invente novos versículos.
 
-5) FONTE REGULATÓRIA
-Baseado no Formulário Nacional da Farmacopeia Brasileira e RDC 357/2020 da Anvisa.
+Responda SOMENTE em JSON no formato:
 
-REGRAS DE LINGUAGEM:
-- Neutro, técnico e objetivo
-- Sem perguntas ou convites para continuidade
-- Resposta única e fechada
-- Evite termos como "recomendo" ou "você deve"
-- Contagem rigorosa de palavras (máx 220)
+{
+ "analysis": "reflexão espiritual profunda com 2 a 4 parágrafos",
+ "verses": [
+   {"book":"Salmos","chapter":23,"verse":1}
+ ]
+}
 """
 
 
-def validar_sinais_alerta(relato: str) -> Optional[str]:
-    sinais_alerta = {
-        r'\bfebr.*(39|40)\b': 'Febre alta',
-        r'\bdor\s+no\s+peito|dor\s+torácica\b': 'Dor torácica',
-        r'\bhemorragia|sangramento\s+intenso\b': 'Sangramento intenso',
-        r'\bgravidez|gestante|grávida\b': 'Gestação',
-        r'\bcriança\s+menor\s+que\s+2\s+anos|<\s*2\s+anos\b': 'Criança menor de 2 anos',
-        r'\bfalta\s+de\s+ar|dispneia\b': 'Dificuldade respiratória',
-        r'\bdesmaio|perda\s+de\s+consciência\b': 'Desmaio'
-    }
+def consultar_ia(relato: str):
 
-    relato_lower = relato.lower()
+    versiculos = buscar_versiculos(relato)[:3]
 
-    for padrao, descricao in sinais_alerta.items():
-        if re.search(padrao, relato_lower):
-            return (
-                f"SINAL DE ALERTA IDENTIFICADO: {descricao}.\n\n"
-                "Procure atendimento médico imediato ou farmacêutico presencial. "
-                "Não é adequado sugerir fórmulas magistrais sem avaliação profissional neste caso."
-            )
+    contexto_versiculos = "\n".join(
+        [f'{v["book"]} {v["chapter"]}:{v["verse"]} - {v["text"]}'
+         for v in versiculos]
+    )
 
-    return None
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        temperature=0.8,
+        max_tokens=600,
+        messages=[
+            {"role": "system", "content": PROMPT},
+            {
+                "role": "user",
+                "content": f"""
+Relato do usuário:
+{relato}
 
+Versículos bíblicos relevantes:
+{contexto_versiculos}
+"""
+            }
+        ]
+    )
 
-def contar_palavras(texto: str) -> int:
-    palavras = re.findall(r'\b\w+\b', texto)
-    return len(palavras)
-
-
-def consultar_ia(relato: str) -> str:
-    try:
-        alerta = validar_sinais_alerta(relato)
-        if alerta:
-            return alerta
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": relato}
-            ],
-            max_tokens=400,
-            temperature=0.2
-        )
-
-        resposta = response.choices[0].message.content.strip()
-
-        if contar_palavras(resposta) > 220:
-            palavras = resposta.split()
-            resposta = " ".join(palavras[:220])
-
-        if "avaliação por farmacêutico" not in resposta.lower():
-            resposta += (
-                "\n\nEstas são opções de venda livre, mas a avaliação por farmacêutico "
-                "é obrigatória antes da manipulação conforme Art. 32 da RDC 67/2007."
-            )
-
-        return resposta
-
-    except Exception as e:
-        print(f"[ERRO IA] {type(e).__name__}: {str(e)}")
-
-        return (
-            "Não foi possível gerar sugestões técnicas no momento. "
-            "Consulte um farmacêutico para orientação adequada. "
-            "Este serviço não substitui avaliação profissional presencial."
-        )
+    return json.loads(completion.choices[0].message.content)
